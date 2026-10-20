@@ -25,29 +25,19 @@ class TransferPageController extends GetxController {
   final RxInt nominal = RxInt(0);
   final RxBool isDisabled = true.obs;
   final RxnString error = RxnString();
-  bool transferOnProgress = false;
+  final RxBool transferOnProgress = false.obs;
 
-  void onTransferTapped() async {
-    if (isDisabled.isTrue) {
-      return;
-    }
-    isDisabled.value = true;
-    if (transferOnProgress) return;
-    if ((await _askPin()) != true) {
-      return;
-    }
-    transferOnProgress = true;
-    late final bool callApiResult;
+  Future<void> onTransferTapped() async {
+    if (isDisabled.isTrue || transferOnProgress.isTrue) return;
+    transferOnProgress.value = true;
     try {
-      callApiResult = await _callApi();
+      if ((await _askPin()) != true) return;
+      error.value = null;
+      if (!await _callApi()) error.value = 'Something Wrong';
     } catch (e) {
       error.value = e.toString();
     } finally {
-      transferOnProgress = false;
-      isDisabled.value = false;
-    }
-    if (!callApiResult) {
-      error.value = 'Something Wrong';
+      transferOnProgress.value = false;
     }
   }
 
@@ -73,8 +63,8 @@ class TransferPageController extends GetxController {
 
   @override
   void onReady() {
-    everAll([tujuan, nominal, isDisabled], (_) {
-      isDisabled.value = !_isValid(nominal.value);
+    everAll([tujuan, nominal, transferOnProgress], (_) {
+      isDisabled.value = transferOnProgress.value || !_isValid(nominal.value);
     });
     super.onReady();
   }
@@ -141,7 +131,12 @@ class TransferPage extends StatelessWidget {
             Obx(
               () => ElevatedButton(
                 onPressed: c.isDisabled.value ? null : c.onTransferTapped,
-                child: const Text('Transfer'),
+                child: c.transferOnProgress.value
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Transfer'),
               ),
             ),
           ],
