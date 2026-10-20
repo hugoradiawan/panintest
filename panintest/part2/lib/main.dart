@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 void main() {
@@ -30,11 +31,11 @@ class TransferPageController extends GetxController {
     if (isDisabled.isTrue) {
       return;
     }
+    isDisabled.value = true;
+    if (transferOnProgress) return;
     if ((await _askPin()) != true) {
       return;
     }
-    isDisabled.value = true;
-    if (transferOnProgress) return;
     transferOnProgress = true;
     late final bool callApiResult;
     try {
@@ -79,6 +80,40 @@ class TransferPageController extends GetxController {
   }
 }
 
+class RupiahInputFormatter extends TextInputFormatter {
+  static const _prefix = 'Rp.';
+  static final _nonDigit = RegExp(r'[^0-9]');
+
+  static int parse(String text) =>
+      int.tryParse(text.replaceAll(_nonDigit, '')) ?? 0;
+
+  static String format(int value) {
+    final digits = value.toString();
+    final buf = StringBuffer(_prefix);
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) buf.write('.');
+      buf.write(digits[i]);
+    }
+    return buf.toString();
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(_nonDigit, '');
+    if (digits.isEmpty) return TextEditingValue.empty;
+    final value = int.tryParse(digits);
+    if (value == null) return oldValue;
+    final text = format(value);
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
 class TransferPage extends StatelessWidget {
   const TransferPage({super.key});
 
@@ -96,7 +131,12 @@ class TransferPage extends StatelessWidget {
           children: [
             TextField(onChanged: c.tujuan.call),
             const Spacer(),
-            TextField(onChanged: (v) => c.nominal.value = int.tryParse(v) ?? 0),
+            TextField(
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(hintText: 'Rp.0'),
+              onChanged: (v) => c.nominal.value = RupiahInputFormatter.parse(v),
+            ),
             const Spacer(flex: 5),
             Obx(
               () => ElevatedButton(
